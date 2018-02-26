@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 
-from count_vec_handler import CVHandler
+from feature_extraction import FeatureExtractor
 
 from nltk import word_tokenize
 from pandas import read_csv, DataFrame
@@ -69,36 +69,36 @@ if __name__ == "__main__":
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
 
-	num_word_thresh = 20000
+	# num_word_thresh = 20000
 
-	print("tokenizing")
-	tokenizer = Tokenizer(num_words = num_word_thresh)
-	tokenizer.fit_on_texts(df["TEXT"])
-	sequences = tokenizer.texts_to_sequences(df["TEXT"])
+	# print("tokenizing")
+	# tokenizer = Tokenizer(num_words = num_word_thresh)
+	# tokenizer.fit_on_texts(df["TEXT"])
+	# sequences = tokenizer.texts_to_sequences(df["TEXT"])
 
-	print("{} unique words".format(len(tokenizer.word_index)))
+	# print("{} unique words".format(len(tokenizer.word_index)))
 
-	input()
+	# input()
 
-	thresh_word = None
+	# thresh_word = None
 
-	while not thresh_word:
-		for w, v in tokenizer.word_index.items():
-			if v == num_word_thresh:
-				thresh_word = w
-				break
-	print(thresh_word)
-	print(tokenizer.word_counts[thresh_word])
+	# while not thresh_word:
+	# 	for w, v in tokenizer.word_index.items():
+	# 		if v == num_word_thresh:
+	# 			thresh_word = w
+	# 			break
+	# print(thresh_word)
+	# print(tokenizer.word_counts[thresh_word])
 
-	input ()
+	# input ()
 
-	for w, v in tokenizer.word_index.items():
-		if v <= 10:
-			print(w, v)
+	# for w, v in tokenizer.word_index.items():
+	# 	if v <= 10:
+	# 		print(w, v)
 
-	#print([word for (word, count) in tokenizer.word_counts.items() if count > 10])
+	# #print([word for (word, count) in tokenizer.word_counts.items() if count > 10])
 
-	exit()
+	# exit()
 
 
 
@@ -111,15 +111,15 @@ if __name__ == "__main__":
 	train_text, test_text, train_labels, test_labels = df.iloc[train_indices, 1], df.iloc[test_indices, 1], df.iloc[train_indices, 2], df.iloc[test_indices, 2]
 
 	print("Computing train tf")
-	classifier = CVHandler()
+	feature_extractor = FeatureExtractor("tf")
 
-	train_tf = classifier.compute_tf_mat(train_text)
+	train_tf = feature_extractor.compute_tf_mat(train_text)
 
 	print("Training Naive Bayes")
 	clf = MultinomialNB().fit(train_tf, train_labels)
 
 	print("Computing test tf")
-	test_tf = classifier.compute_tf_mat(test_text)
+	test_tf = feature_extractor.compute_tf_mat(test_text)
 	predictions = clf.predict(test_tf)
 
 	correct = 0
