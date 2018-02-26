@@ -105,25 +105,34 @@ if __name__ == "__main__":
 	print("Randomizing test set")
 	indices = [n for n in range(len(df))]
 	random.shuffle(indices)
-	test_indices = indices[:len(indices) // 10]
-	train_indices = indices[len(indices) // 10 :]
+	k = 5
+	slice_size = len(indices) // k
 
-	train_text, test_text, train_labels, test_labels = df.iloc[train_indices, 1], df.iloc[test_indices, 1], df.iloc[train_indices, 2], df.iloc[test_indices, 2]
+	test_indices_lists = []
+	for i in range(k):
+		test_indices_lists.append([index for index in indices[i * slice_size: (i + 1) * slice_size]])
 
-	print("Computing train tf")
-	feature_extractor = FeatureExtractor("tf")
+	total_precision = 0
+	for test_indices in test_indices_lists:
+		train_indices = [n for n in indices if n not in test_indices]
+		test_text, train_text, test_labels, train_labels = df.TEXT[test_indices], df.TEXT[train_indices], df.LABEL[test_indices], df.LABEL[train_indices]
 
-	train_tf = feature_extractor.compute_tf_mat(train_text)
+		print("Computing train tf")
+		feature_extractor = FeatureExtractor("tf")
 
-	print("Training Naive Bayes")
-	clf = MultinomialNB().fit(train_tf, train_labels)
+		train_tf = feature_extractor.compute_tf_mat(train_text)
 
-	print("Computing test tf")
-	test_tf = feature_extractor.compute_tf_mat(test_text)
-	predictions = clf.predict(test_tf)
+		print("Training Naive Bayes")
+		clf = MultinomialNB().fit(train_tf, train_labels)
 
-	correct = 0
-	for pred, actual in zip(predictions, test_labels):
-		if pred == actual:
-			correct += 1
-	print("{} correct out of {}  ({})%".format(correct, len(test_indices), correct * 100 / len(test_indices)))
+		print("Computing test tf")
+		test_tf = feature_extractor.compute_tf_mat(test_text)
+		predictions = clf.predict(test_tf)
+
+		correct = 0
+		for pred, actual in zip(predictions, test_labels):
+			if pred == actual:
+				correct += 1
+		total_precision += correct / len(test_indices)
+		#print("{} correct out of {}  ({})%".format(correct, len(test_indices), correct * 100 / len(test_indices)))
+	print("Average precision: {}".format(total_precision / k))
