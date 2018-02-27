@@ -61,6 +61,29 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None)
 
 	return np.array(vectors)
 
+#Input: list/array of predicted 0/1 labels and the actual labels
+#Outputs: accuracy, precision, recall and f-measure of predictions
+def compute_metrics(predictions, actual):
+	tp = tn = fp = fn = 0
+
+	for pred, ac in zip(predictions, actual):
+		if ac == 0:
+			if pred == 0:
+				tn += 1
+			else:
+				fp += 1
+		else:
+			if pred == 1:
+				tp += 1
+			else:
+				fn += 1
+	recall = tp / float(tp + fn)
+	precision = tp / float(tp + fp)
+
+	#Accuracy, precision, recall, f-measure
+	return (tp + tn) / len(predictions), precision, recall, 2 * (precision * recall) / (precision + recall)
+
+
 if __name__ == "__main__":
 	print("Reading dataset")
 	df = read_csv("news_ds.csv")
@@ -129,10 +152,6 @@ if __name__ == "__main__":
 		test_tf = feature_extractor.compute_tf_mat(test_text)
 		predictions = clf.predict(test_tf)
 
-		correct = 0
-		for pred, actual in zip(predictions, test_labels):
-			if pred == actual:
-				correct += 1
-		total_precision += correct / len(test_indices)
-		#print("{} correct out of {}  ({})%".format(correct, len(test_indices), correct * 100 / len(test_indices)))
-	print("Average precision: {}".format(total_precision / k))
+		accuracy, precision, recall, fmeasure = compute_metrics(predictions, test_labels)
+		print("{:10}: {}\n{:10}: {}\n{:10}: {}\n{:10}: {}\n".format("Accuracy", accuracy, "Precision", precision, "Recall", recall, "F-Measure", fmeasure))
+		
