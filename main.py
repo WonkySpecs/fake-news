@@ -11,8 +11,11 @@ from nltk import word_tokenize
 from pandas import read_csv, DataFrame
 from sklearn.naive_bayes import MultinomialNB
 
-from keras.preprocessing.text import Tokenizer
+
 from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential
+from keras.layers import Dense, Embedding
+from keras.layers import LSTM
 
 word2vec_file = "glove.6B.100d.txt"
 
@@ -27,13 +30,17 @@ def load_word2vec_dict(word2vec_file):
 
 	return w2vd
 
-def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None):
+def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None, length = None):
 	if preloaded_w2v and word2vec_file:
 		print("Warning: text_to_word2vec received values for both word2vec_dict and word2vec_file, expected only one. Defaulting to use word2vec_dict")
 
 	if not (preloaded_w2v or word2vec_file):
 		print("Must specify word2vec_dict or word_2vec_file in text_to_word2vec()")
 		exit()
+
+	if length:
+		if len(tokenized_text) > length:
+			tokenized_text = tokenized_text[:length]
 
 	vectors = []
 
@@ -58,8 +65,19 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None)
 
 	for word in tokenized_text:
 		vectors.append(w2vdict[word])
+	#If vector is too short, pad with 0s
+	if length:
+		if len(vectors) < length:
+			vectors.extend([0 for i in range(length - len(vectors))])
 
 	return np.array(vectors)
+
+def set_length(tokens, length):
+	if len(tokens) < length:
+		tokens.extend([0 for i in range(length - len(tokens))])
+		return tokens
+	else:
+		return tokens[:length]
 
 #Input: list/array of predicted 0/1 labels and the actual labels
 #Outputs: accuracy, precision, recall and f-measure of predictions
@@ -92,39 +110,6 @@ if __name__ == "__main__":
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
 
-	# num_word_thresh = 20000
-
-	# print("tokenizing")
-	# tokenizer = Tokenizer(num_words = num_word_thresh)
-	# tokenizer.fit_on_texts(df["TEXT"])
-	# sequences = tokenizer.texts_to_sequences(df["TEXT"])
-
-	# print("{} unique words".format(len(tokenizer.word_index)))
-
-	# input()
-
-	# thresh_word = None
-
-	# while not thresh_word:
-	# 	for w, v in tokenizer.word_index.items():
-	# 		if v == num_word_thresh:
-	# 			thresh_word = w
-	# 			break
-	# print(thresh_word)
-	# print(tokenizer.word_counts[thresh_word])
-
-	# input ()
-
-	# for w, v in tokenizer.word_index.items():
-	# 	if v <= 10:
-	# 		print(w, v)
-
-	# #print([word for (word, count) in tokenizer.word_counts.items() if count > 10])
-
-	# exit()
-
-
-
 	print("Randomizing test set")
 	indices = [n for n in range(len(df))]
 	random.shuffle(indices)
@@ -134,6 +119,32 @@ if __name__ == "__main__":
 	test_indices_lists = []
 	for i in range(k):
 		test_indices_lists.append([index for index in indices[i * slice_size: (i + 1) * slice_size]])
+
+
+	print("Loading word2vec")
+	word2vec_dict = load_word2vec_dict(word2vec_file)
+
+	print("Tokenizing texts")
+	df.TEXT = df.TEXT.apply(word_tokenize)
+
+	print("Stripping unknown words")
+	df.TEXT = df.TEXT.apply(lambda t : [w for w in t if w in word2vec_dict.keys()])
+
+	print(max([len(t) for t in df.TEXT]))
+
+	print("Example text to vectors")
+	train_vecs = df.TEXT.apply(lambda t : text_to_word2vec(t, preloaded_w2v = word2vec_dict, length = 1000))
+	for v in train_vecs:
+		print(v.shape)
+
+	#This heres a nn woo
+	model = Sequential()
+	model.add(LSTM(100, input_shape = train_vecs.shape, dropout = 0.2, recurrent_dropout = 0.2))
+	model.add(Dense(1, activation = 'sigmoid'))
+	input()
+	exit()
+
+	#Multinomial naive bayes
 
 	extractor_name_dict = { "tf"			: FeatureExtractor("tf"),
 							"tfidf" 		: FeatureExtractor("tfidf"),
@@ -148,14 +159,14 @@ if __name__ == "__main__":
 			test_text, train_text, test_labels, train_labels = df.TEXT[test_indices], df.TEXT[train_indices], df.LABEL[test_indices], df.LABEL[train_indices]
 
 			#print("Computing train tf")
-			train_tf = feature_extractor.compute_tf_mat(train_text)
+			train_freq_mat = feature_extractor.compute_freq_mat(train_text)
 
 			#print("Training Naive Bayes")
-			clf = MultinomialNB().fit(train_tf, train_labels)
+			clf = MultinomialNB().fit(train_freq_mat, train_labels)
 
 			#print("Computing test tf")
-			test_tf = feature_extractor.compute_tf_mat(test_text)
-			predictions = clf.predict(test_tf)
+			test_freq_mat = feature_extractor.compute_freq_mat(test_text)
+			predictions = clf.predict(test_freq_mat)
 
 			accuracy, precision, recall, fmeasure = compute_metrics(predictions, test_labels)
 			avg_accuracy += accuracy

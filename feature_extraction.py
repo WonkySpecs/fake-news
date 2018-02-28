@@ -13,7 +13,7 @@ class FeatureExtractor:
 		else:
 			self.ngram_range = ngram_range
 
-	def compute_tf_mat(self, input_texts):
+	def compute_freq_mat(self, input_texts):
 		if self.count_vect:
 			word_doc_freq_mat = self.count_vect.transform(input_texts)
 		else:
