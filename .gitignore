@@ -1,3 +1,5 @@
 Anaconda Prompt.lnk
 __pycache__/
 news_ds.csv
+glove.6b*
+*.pyc
