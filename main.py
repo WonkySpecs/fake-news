@@ -11,17 +11,22 @@ from nltk import word_tokenize
 from pandas import read_csv, DataFrame
 from sklearn.naive_bayes import MultinomialNB
 
-
+from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
 from keras.layers import Dense, Embedding
 from keras.layers import LSTM
 
-word2vec_file = "glove.6B.100d.txt"
-
-def load_word2vec_dict(word2vec_file):
+def load_word2vec_dict(embedding_length):
 	w2vd = dict()
-	with open(word2vec_file, encoding = "utf8") as w2vf:
+	w2vfile = None
+	valid_embedding_lengths = [50, 100, 200, 300]
+	if embedding_length in valid_embedding_lengths:
+		w2vfile = "glove.6B." + str(embedding_length) + "d.txt"
+	else:
+		print("Invalid embedding length {} past to load_word2vec_dict, must be one of {}".format(embedding_length, valid_embedding_lengths))
+
+	with open(w2vfile, encoding = "utf8") as w2vf:
 		for line in w2vf:
 			items = line.replace("\n", "").replace("\r", "").split(" ")
 			word = items[0]
@@ -68,16 +73,9 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None,
 	#If vector is too short, pad with 0s
 	if length:
 		if len(vectors) < length:
-			vectors.extend([0 for i in range(length - len(vectors))])
+			vectors.extend([np.zeros(vectors[0].shape) for i in range(length - len(vectors))])
 
 	return np.array(vectors)
-
-def set_length(tokens, length):
-	if len(tokens) < length:
-		tokens.extend([0 for i in range(length - len(tokens))])
-		return tokens
-	else:
-		return tokens[:length]
 
 #Input: list/array of predicted 0/1 labels and the actual labels
 #Outputs: accuracy, precision, recall and f-measure of predictions
@@ -103,6 +101,11 @@ def compute_metrics(predictions, actual):
 
 
 if __name__ == "__main__":
+	test_mode = True
+	MAX_NUM_WORDS = 20000
+	SEQ_LENGTH = 1000
+	EMBEDDING_LENGTH = 100
+
 	print("Reading dataset")
 	df = read_csv("news_ds.csv")
 
@@ -110,37 +113,68 @@ if __name__ == "__main__":
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
 
-	print("Randomizing test set")
-	indices = [n for n in range(len(df))]
-	random.shuffle(indices)
-	k = 5
-	slice_size = len(indices) // k
-
-	test_indices_lists = []
-	for i in range(k):
-		test_indices_lists.append([index for index in indices[i * slice_size: (i + 1) * slice_size]])
-
-
-	print("Loading word2vec")
-	word2vec_dict = load_word2vec_dict(word2vec_file)
+	#Test mode = use small set of data
+	if test_mode:
+		df.drop([i for i in range(500, len(df))], inplace = True)
+		df.reset_index(inplace = True, drop = True)
 
 	print("Tokenizing texts")
-	df.TEXT = df.TEXT.apply(word_tokenize)
+	tokenizer = Tokenizer(num_words = MAX_NUM_WORDS)
+	tokenizer.fit_on_texts(list(df.TEXT))
+	sequences = tokenizer.texts_to_sequences(list(df.TEXT))
+	word_index = tokenizer.word_index
 
-	print("Stripping unknown words")
-	df.TEXT = df.TEXT.apply(lambda t : [w for w in t if w in word2vec_dict.keys()])
+	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)
 
-	print(max([len(t) for t in df.TEXT]))
+	# print("Randomizing test set")
+	# indices = [n for n in range(len(df))]
+	# random.shuffle(indices)
+	# k = 5
+	# slice_size = len(indices) // k
 
-	print("Example text to vectors")
-	train_vecs = df.TEXT.apply(lambda t : text_to_word2vec(t, preloaded_w2v = word2vec_dict, length = 1000))
-	for v in train_vecs:
-		print(v.shape)
+	# vector_length = 1000
 
-	#This heres a nn woo
+	# test_indices_lists = []
+	# for i in range(k):
+	# 	test_indices_lists.append([index for index in indices[i * slice_size: (i + 1) * slice_size]])
+
+	print("Loading word2vec")
+	word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
+
+	print("Building embedding mat")
+	embedding_mat = np.zeros(((len(word_index) + 1), EMBEDDING_LENGTH))
+
+	for word, i in word_index.items():
+		embedding = word2vec_dict.get(word)
+		if embedding is not None:
+			embedding_mat[i] = embedding
+	print(embedding_mat)
+	print(embedding_mat.shape)
+
 	model = Sequential()
-	model.add(LSTM(100, input_shape = train_vecs.shape, dropout = 0.2, recurrent_dropout = 0.2))
+	model.add(Embedding(len(word_index) + 1,
+                        EMBEDDING_LENGTH,
+                        weights = [embedding_mat],
+                        input_length = SEQ_LENGTH,
+                        trainable = False))
+	model.add(LSTM(100, dropout = 0.2, recurrent_dropout = 0.2))
 	model.add(Dense(1, activation = 'sigmoid'))
+
+	model.compile(loss = 'binary_crossentropy',
+	              optimizer = 'adam',
+	              metrics = ['accuracy'])
+	
+	train_text, train_labels = fixed_length_sequences[:400], df.LABEL[:400]
+	test_text, test_labels = fixed_length_sequences[400:], df.LABEL[400:]
+
+	batch_size = 32
+
+	model.fit(train_text, train_labels, epochs = 5, batch_size = batch_size)
+
+	score, acc = model.evaluate(test_text, test_labels,
+                            	batch_size = batch_size)
+
+	print(score, acc)
 	input()
 	exit()
 
