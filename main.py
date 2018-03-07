@@ -7,7 +7,7 @@ import numpy as np
 
 from feature_extraction import FeatureExtractor
 
-from nltk import word_tokenize
+from nltk.corpus import stopwords
 from pandas import read_csv, DataFrame
 from sklearn.naive_bayes import MultinomialNB
 
@@ -33,6 +33,12 @@ def load_word2vec_dict(embedding_length):
 			vec = np.array([float(n) for n in items[1:]])
 			w2vd[word] = vec
 
+	for word in stopwords.words("english"):
+		try:
+			del w2vd[word]
+			print("removed {}".format(word))
+		except KeyError:
+			pass
 	return w2vd
 
 def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None, length = None):
@@ -99,10 +105,8 @@ def compute_metrics(predictions, actual):
 	#Accuracy, precision, recall, f-measure
 	return (tp + tn) / len(predictions), precision, recall, 2 * (precision * recall) / (precision + recall)
 
-
 if __name__ == "__main__":
 	test_mode = True
-	MAX_NUM_WORDS = 20000
 	SEQ_LENGTH = 1000
 	EMBEDDING_LENGTH = 100
 
@@ -115,15 +119,16 @@ if __name__ == "__main__":
 
 	#Test mode = use small set of data
 	if test_mode:
-		df.drop([i for i in range(500, len(df))], inplace = True)
+		df.drop([i for i in range(1000, len(df))], inplace = True)
 		df.reset_index(inplace = True, drop = True)
 
 	print("Tokenizing texts")
-	tokenizer = Tokenizer(num_words = MAX_NUM_WORDS)
+	tokenizer = Tokenizer()
 	tokenizer.fit_on_texts(list(df.TEXT))
 	sequences = tokenizer.texts_to_sequences(list(df.TEXT))
 	word_index = tokenizer.word_index
 
+	#Pads too short sequences with 0s, truncates too long sequences
 	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)
 
 	# print("Randomizing test set")
@@ -141,6 +146,7 @@ if __name__ == "__main__":
 	print("Loading word2vec")
 	word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
 
+	#We build a matrix of ()
 	print("Building embedding mat")
 	embedding_mat = np.zeros(((len(word_index) + 1), EMBEDDING_LENGTH))
 
@@ -148,28 +154,30 @@ if __name__ == "__main__":
 		embedding = word2vec_dict.get(word)
 		if embedding is not None:
 			embedding_mat[i] = embedding
-	print(embedding_mat)
-	print(embedding_mat.shape)
 
 	model = Sequential()
+	#The embedding layer has fixed weights which just provide an efficient way to transform the input tokens into the provided word embeddings
 	model.add(Embedding(len(word_index) + 1,
                         EMBEDDING_LENGTH,
                         weights = [embedding_mat],
                         input_length = SEQ_LENGTH,
                         trainable = False))
-	model.add(LSTM(100, dropout = 0.2, recurrent_dropout = 0.2))
+	model.add(LSTM(128, dropout = 0.2, recurrent_dropout = 0.2))
 	model.add(Dense(1, activation = 'sigmoid'))
 
 	model.compile(loss = 'binary_crossentropy',
 	              optimizer = 'adam',
 	              metrics = ['accuracy'])
 	
-	train_text, train_labels = fixed_length_sequences[:400], df.LABEL[:400]
-	test_text, test_labels = fixed_length_sequences[400:], df.LABEL[400:]
+	train_split = 0.1
+	train_samples = math.floor(len(fixed_length_sequences) * (1 - train_split))
+	print(train_samples)
+	train_text, train_labels = fixed_length_sequences[:train_samples], df.LABEL[:train_samples]
+	test_text, test_labels = fixed_length_sequences[train_samples:], df.LABEL[train_samples:]
 
-	batch_size = 32
+	batch_size = 64
 
-	model.fit(train_text, train_labels, epochs = 5, batch_size = batch_size)
+	model.fit(train_text, train_labels, epochs = 5, batch_size = batch_size, validation_data = (test_text, test_labels))
 
 	score, acc = model.evaluate(test_text, test_labels,
                             	batch_size = batch_size)
