@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 
-from feature_extraction import FeatureExtractor
+from bayes import mn_bayes
 
 from nltk.corpus import stopwords
 from pandas import read_csv, DataFrame
@@ -83,28 +83,6 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None,
 
 	return np.array(vectors)
 
-#Input: list/array of predicted 0/1 labels and the actual labels
-#Outputs: accuracy, precision, recall and f-measure of predictions
-def compute_metrics(predictions, actual):
-	tp = tn = fp = fn = 0
-
-	for pred, ac in zip(predictions, actual):
-		if ac == 0:
-			if pred == 0:
-				tn += 1
-			else:
-				fp += 1
-		else:
-			if pred == 1:
-				tp += 1
-			else:
-				fn += 1
-	recall = tp / float(tp + fn)
-	precision = tp / float(tp + fp)
-
-	#Accuracy, precision, recall, f-measure
-	return (tp + tn) / len(predictions), precision, recall, 2 * (precision * recall) / (precision + recall)
-
 if __name__ == "__main__":
 	test_mode = True
 	SEQ_LENGTH = 1000
@@ -116,6 +94,9 @@ if __name__ == "__main__":
 	#36 of the included samples are blank, we remove them
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
+
+	#Multinomial naive bayes
+	mn_bayes(df, 5)
 
 	#Test mode = use small set of data
 	if test_mode:
@@ -129,19 +110,7 @@ if __name__ == "__main__":
 	word_index = tokenizer.word_index
 
 	#Pads too short sequences with 0s, truncates too long sequences
-	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)
-
-	# print("Randomizing test set")
-	# indices = [n for n in range(len(df))]
-	# random.shuffle(indices)
-	# k = 5
-	# slice_size = len(indices) // k
-
-	# vector_length = 1000
-
-	# test_indices_lists = []
-	# for i in range(k):
-	# 	test_indices_lists.append([index for index in indices[i * slice_size: (i + 1) * slice_size]])
+	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)	
 
 	print("Loading word2vec")
 	word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
@@ -183,42 +152,5 @@ if __name__ == "__main__":
                             	batch_size = batch_size)
 
 	print(score, acc)
-	input()
-	exit()
 
-	#Multinomial naive bayes
-
-	extractor_name_dict = { "tf"			: FeatureExtractor("tf"),
-							"tfidf" 		: FeatureExtractor("tfidf"),
-							"2gram tf"		: FeatureExtractor("tf", ngram_range = (2, 2)),
-							"2gram tfidf"	: FeatureExtractor("tfidf", ngram_range = (2, 2))}
-
-	for name, feature_extractor in extractor_name_dict.items():
-		print("Training and testing {} extractor with {}-fold cross validation".format(name, k))
-		avg_accuracy =  avg_precision =  avg_recall =  avg_fmeasure = 0
-		for test_indices in test_indices_lists:
-			train_indices = [n for n in indices if n not in test_indices]
-			test_text, train_text, test_labels, train_labels = df.TEXT[test_indices], df.TEXT[train_indices], df.LABEL[test_indices], df.LABEL[train_indices]
-
-			#print("Computing train tf")
-			train_freq_mat = feature_extractor.compute_freq_mat(train_text)
-
-			#print("Training Naive Bayes")
-			clf = MultinomialNB().fit(train_freq_mat, train_labels)
-
-			#print("Computing test tf")
-			test_freq_mat = feature_extractor.compute_freq_mat(test_text)
-			predictions = clf.predict(test_freq_mat)
-
-			accuracy, precision, recall, fmeasure = compute_metrics(predictions, test_labels)
-			avg_accuracy += accuracy
-			avg_precision += precision
-			avg_recall += recall
-			avg_fmeasure += fmeasure
-			#print("{:10}: {}\n{:10}: {}\n{:10}: {}\n{:10}: {}\n".format("Accuracy", accuracy, "Precision", precision, "Recall", recall, "F-Measure", fmeasure))
-
-		avg_accuracy = avg_accuracy / k
-		avg_precision = avg_precision / k
-		avg_recall = avg_recall / k
-		avg_fmeasure = avg_fmeasure / k
-		print("Averages:\n--------------\n{:10}: {}\n{:10}: {}\n{:10}: {}\n{:10}: {}\n".format("Accuracy", avg_accuracy, "Precision", avg_precision, "Recall", avg_recall, "F-Measure", avg_fmeasure))
+	
