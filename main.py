@@ -5,6 +5,8 @@ import math
 
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 from bayes import mn_bayes
 
 from nltk.corpus import stopwords
@@ -14,8 +16,8 @@ from sklearn.naive_bayes import MultinomialNB
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
-from keras.layers import Dense, Embedding
-from keras.layers import LSTM
+from keras.layers import Dense, Embedding, SimpleRNN, LSTM, Dropout
+from keras.optimizers import Adam
 
 def load_word2vec_dict(embedding_length):
 	w2vd = dict()
@@ -36,7 +38,6 @@ def load_word2vec_dict(embedding_length):
 	for word in stopwords.words("english"):
 		try:
 			del w2vd[word]
-			print("removed {}".format(word))
 		except KeyError:
 			pass
 	return w2vd
@@ -83,8 +84,44 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None,
 
 	return np.array(vectors)
 
+def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
+	model = Sequential()
+
+	#Embedding layer used to translate words to vectors
+	if embedding_mat is not None:
+		#If using prebuilt embeddings (ie Glove), fix embedding weights as the given weights
+		model.add(Embedding(max_i + 1,
+                        EMBEDDING_LENGTH,
+                        weights = [embedding_mat],
+                        input_length = SEQ_LENGTH,
+                        trainable = False))
+	else:
+		#Otherwise embeddings will be learnt during fitting
+		model.add(Embedding(max_i + 1, EMBEDDING_LENGTH, input_length = SEQ_LENGTH))
+
+	if model_type == "LSTM":
+		model.add(LSTM(100))
+		model.add(Dropout(0.3))
+
+	elif model_type == "RNN":
+		model.add(SimpleRNN(100))
+		model.add(Dropout(0.3))
+	else:
+		print("Invalid model_type {} passed to build_model".format(model_type))
+		exit()
+
+	#Single neuron dens layer provides the output
+	model.add(Dense(1, activation = 'sigmoid'))
+
+	model.compile(loss = 'binary_crossentropy',
+	              optimizer = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = None, decay = 0.0, amsgrad = False),
+	              metrics = ['accuracy'])
+
+	return model
+
 if __name__ == "__main__":
-	test_mode = True
+	test_mode = False
+	prebuilt_embeddings = True
 	SEQ_LENGTH = 1000
 	EMBEDDING_LENGTH = 100
 
@@ -94,9 +131,6 @@ if __name__ == "__main__":
 	#36 of the included samples are blank, we remove them
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
-
-	#Multinomial naive bayes
-	mn_bayes(df, 5)
 
 	#Test mode = use small set of data
 	if test_mode:
@@ -110,47 +144,51 @@ if __name__ == "__main__":
 	word_index = tokenizer.word_index
 
 	#Pads too short sequences with 0s, truncates too long sequences
-	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)	
+	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)
 
-	print("Loading word2vec")
-	word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
+	embedding_mat = None
 
-	#We build a matrix of ()
-	print("Building embedding mat")
-	embedding_mat = np.zeros(((len(word_index) + 1), EMBEDDING_LENGTH))
+	if prebuilt_embeddings:
+		print("Loading word2vec")
+		word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
 
-	for word, i in word_index.items():
-		embedding = word2vec_dict.get(word)
-		if embedding is not None:
-			embedding_mat[i] = embedding
+		for word in stopwords.words("english"):
+			if word in word_index.keys():
+				del word_index[word]
 
-	model = Sequential()
-	#The embedding layer has fixed weights which just provide an efficient way to transform the input tokens into the provided word embeddings
-	model.add(Embedding(len(word_index) + 1,
-                        EMBEDDING_LENGTH,
-                        weights = [embedding_mat],
-                        input_length = SEQ_LENGTH,
-                        trainable = False))
-	model.add(LSTM(128, dropout = 0.2, recurrent_dropout = 0.2))
-	model.add(Dense(1, activation = 'sigmoid'))
+		max_i = max(word_index.values())
 
-	model.compile(loss = 'binary_crossentropy',
-	              optimizer = 'adam',
-	              metrics = ['accuracy'])
+		print("Building embedding mat")
+		embedding_mat = np.zeros(((max_i + 1), EMBEDDING_LENGTH))
+
+		for word, i in word_index.items():
+			embedding = word2vec_dict.get(word)
+			if embedding is not None:
+				embedding_mat[i] = embedding
 	
 	train_split = 0.1
-	train_samples = math.floor(len(fixed_length_sequences) * (1 - train_split))
-	print(train_samples)
-	train_text, train_labels = fixed_length_sequences[:train_samples], df.LABEL[:train_samples]
-	test_text, test_labels = fixed_length_sequences[train_samples:], df.LABEL[train_samples:]
+	num_train_samples = math.floor(len(fixed_length_sequences) * (1 - train_split))
+
+	train_text, train_labels = fixed_length_sequences[:num_train_samples], df.LABEL[:num_train_samples]
+	test_text, test_labels = fixed_length_sequences[num_train_samples:], df.LABEL[num_train_samples:]
 
 	batch_size = 64
+	num_epochs = 15
 
-	model.fit(train_text, train_labels, epochs = 5, batch_size = batch_size, validation_data = (test_text, test_labels))
+	model = build_model("RNN", embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH)
+	rnn_history = model.fit(train_text, train_labels, epochs = num_epochs, batch_size = batch_size, validation_data = (test_text, test_labels))
+	model = build_model("LSTM", embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH)
+	lstm_history = model.fit(train_text, train_labels, epochs = num_epochs, batch_size = batch_size, validation_data = (test_text, test_labels))
 
-	score, acc = model.evaluate(test_text, test_labels,
-                            	batch_size = batch_size)
 
-	print(score, acc)
+	epoch_list = [i for i in range(1, num_epochs + 1)]
+	plt.plot(epoch_list, lstm_history.history["val_acc"], 'g^', epoch_list, rnn_history.history["val_acc"], 'bs')
+	plt.xylabel('Epoch')
+	plt.ylabel('Validation Accuracy')
+	plt.savefig("output")
+	plt.show()
+	input()
+	exit()
 
-	
+	#Multinomial naive bayes
+	mn_bayes(df, 5)
