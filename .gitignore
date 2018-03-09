@@ -3,3 +3,5 @@ __pycache__/
 news_ds.csv
 glove.6b*
 *.pyc
+output*
+*.odt*
