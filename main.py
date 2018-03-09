@@ -12,6 +12,7 @@ from neural_nets import compare_rnn_lstm
 
 from pandas import read_csv, DataFrame
 
+#Given a list of tokens
 def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None, length = None):
 	if preloaded_w2v and word2vec_file:
 		print("Warning: text_to_word2vec received values for both word2vec_dict and word2vec_file, expected only one. Defaulting to use word2vec_dict")
@@ -41,16 +42,17 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None,
 						vectors_needed.remove(word)
 				else:
 					break
-
-			if vectors_needed:
-				print("Not all words found HANDLE THIS ITS GONNA CRASH FOR NOW")
+	vec_len = None
+	for v in w2vdict.values():
+		if not vec_len:
+			vec_len = len(v)
+		else:
+			if len(v) != vec_len:
+				print("Vectors found during text_to_word2vec are nott he same length, aborting")
+				exit()
 
 	for word in tokenized_text:
-		vectors.append(w2vdict[word])
-	#If vector is too short, pad with 0s
-	if length:
-		if len(vectors) < length:
-			vectors.extend([np.zeros(vectors[0].shape) for i in range(length - len(vectors))])
+		vectors.append(w2vdict.get(word, np.zeros((vec_len))))
 
 	return np.array(vectors)
 
@@ -65,21 +67,23 @@ if __name__ == "__main__":
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
 
-	#Test mode = use small set of data
+	#Test mode uses a subset of data
 	if test_mode:
 		df.drop([i for i in range(1000, len(df))], inplace = True)
 		df.reset_index(inplace = True, drop = True)
 
 	rnn_history, lstm_history = compare_rnn_lstm(df, prebuilt_embeddings)	
 
-	print(rnn_history)
-	print(lstm_history)
-
+	#Plot performance graphs
 	epoch_list = [i for i in range(1, len(rnn_history["acc"]) + 1)]
-	plt.plot(epoch_list, lstm_history["acc"], 'g^', epoch_list, rnn_history["acc"], 'b^', epoch_list, lstm_history["val_acc"], 'g+', epoch_list, rnn_history["val_acc"], 'b+')
+	plt.plot(epoch_list, lstm_history["acc"], color = (0, 0.6, 0))
+	plt.plot(epoch_list, rnn_history["acc"], color = (0, 0, 0.6))
+	plt.plot(epoch_list, lstm_history["val_acc"], color = (0.05, 1, 0.05))
+	plt.plot(epoch_list, rnn_history["val_acc"], color = (0.05, 0.05, 1))
 	plt.xlabel('Epoch')
 	plt.ylabel('Validation Accuracy')
-	plt.savefig("asd")
+	plt.title("Accuracy and validation accuracy over 20 epochs")
+	plt.savefig("output2")
 	plt.show()
 
 	#Multinomial naive bayes

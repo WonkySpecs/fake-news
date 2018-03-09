@@ -6,6 +6,7 @@ from common_functions import compute_metrics
 from sklearn.naive_bayes import MultinomialNB
 import sklearn.feature_extraction.text as sk
 
+#Wrapper class for sk countvectorizer and tfidftransformer
 class FeatureExtractor:
 	def __init__(self, feature_type, ngram_range = None):
 		if feature_type.lower() in ["tf", "tfidf"]:
@@ -41,6 +42,7 @@ def mn_bayes(df, k):
 							"2gram tf"		: FeatureExtractor("tf", ngram_range = (2, 2)),
 							"2gram tfidf"	: FeatureExtractor("tfidf", ngram_range = (2, 2))}
 
+	#Randomize test/training sets
 	indices = [n for n in range(len(df))]
 	random.shuffle(indices)
 	slice_size = len(indices) // k
@@ -56,13 +58,11 @@ def mn_bayes(df, k):
 			train_indices = [n for n in indices if n not in test_indices]
 			test_text, train_text, test_labels, train_labels = df.TEXT[test_indices], df.TEXT[train_indices], df.LABEL[test_indices], df.LABEL[train_indices]
 
-			#print("Computing train tf")
 			train_freq_mat = feature_extractor.compute_freq_mat(train_text)
 
 			#print("Training Naive Bayes")
 			clf = MultinomialNB().fit(train_freq_mat, train_labels)
 
-			#print("Computing test tf")
 			test_freq_mat = feature_extractor.compute_freq_mat(test_text)
 			predictions = clf.predict(test_freq_mat)
 

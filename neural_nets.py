@@ -38,6 +38,7 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 	#Embedding layer used to translate words to vectors
 	if embedding_mat is not None:
 		#If using prebuilt embeddings (ie Glove), fix embedding weights as the given weights
+		#Inputs to this layer then "select" the correct row fromt he embedding matrix for the next layer
 		model.add(Embedding(embedding_mat.shape[0],
                         EMBEDDING_LENGTH,
                         weights = [embedding_mat],
@@ -50,6 +51,7 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 	if model_type == "LSTM":
 		model.add(LSTM(100))
 		model.add(Dropout(0.2))
+
 	elif model_type == "RNN":
 		model.add(SimpleRNN(150))
 		model.add(Dropout(0.4))
@@ -69,7 +71,7 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 def compare_rnn_lstm(df, prebuilt_embeddings):
 	SEQ_LENGTH = 1000
 	EMBEDDING_LENGTH = 100
-	
+
 	print("Tokenizing texts")
 	tokenizer = Tokenizer()
 	tokenizer.fit_on_texts(list(df.TEXT))
@@ -83,9 +85,13 @@ def compare_rnn_lstm(df, prebuilt_embeddings):
 		word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
 
 		for word in stopwords.words("english"):
-			if word in word_index.keys():
+			try:
 				del word_index[word]
+			except KeyError:
+				pass
 
+		#Should rejig indices to be consecutive 0 -> len(word_index), for now will just have zero rows for stopwords
+		#shouldnt matter as they dont get selected, but does wasted some memory
 		max_i = max(word_index.values())
 
 		print("Building embedding mat")
@@ -96,6 +102,7 @@ def compare_rnn_lstm(df, prebuilt_embeddings):
 			if embedding is not None:
 				embedding_mat[i] = embedding
 
+	#Truncate sequences longer than SEQ_LENGTH, pad shorter sequences with 0s
 	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)
 
 	train_split = 0.1
@@ -105,8 +112,9 @@ def compare_rnn_lstm(df, prebuilt_embeddings):
 	test_text, test_labels = fixed_length_sequences[num_train_samples:], df.LABEL[num_train_samples:]
 
 	batch_size = 64
-	num_epochs = 5
+	num_epochs = 20
 
+	#Model.fit returns a history of the model which includes its performance on the given (unseen) test data
 	model = build_model("RNN", embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH)
 	rh = model.fit(train_text, train_labels, epochs = num_epochs, batch_size = batch_size, validation_data = (test_text, test_labels))
 	model = build_model("LSTM", embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH)
