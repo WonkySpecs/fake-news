@@ -65,7 +65,7 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 def compare_rnn_lstm(df):
 	#Texts longer than SEQ_LENGTH will be truncated, shorter texts are padded with 0s
 	SEQ_LENGTH = 1000
-	#The length of each word vector
+	#Length of each word vector
 	EMBEDDING_LENGTH = 100
 
 	print("Tokenizing texts")
@@ -80,6 +80,7 @@ def compare_rnn_lstm(df):
 	max_i = max(word_index.values())
 
 	print("Building embedding mat")
+	# +1 allows for a row of zeros for unknown words/padded sequences
 	embedding_mat = np.zeros(((max_i + 1), EMBEDDING_LENGTH))
 
 	for word, i in word_index.items():
@@ -100,8 +101,10 @@ def compare_rnn_lstm(df):
 	num_epochs = 20
 
 	#Model.fit returns a history of the model which includes its performance on the given (unseen) test data
+	print("Training RNN")
 	model = build_model("RNN", embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH)
 	rh = model.fit(train_text, train_labels, epochs = num_epochs, batch_size = batch_size, validation_data = (test_text, test_labels))
+	print("Training LSTM")
 	model = build_model("LSTM", embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH)
 	lh = model.fit(train_text, train_labels, epochs = num_epochs, batch_size = batch_size, validation_data = (test_text, test_labels))
 

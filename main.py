@@ -1,18 +1,12 @@
 import csv
-import time
-import random
-import math
 import string
-
-import numpy as np
-
-import matplotlib.pyplot as plt
 
 from bayes import mn_bayes
 from neural_nets import compare_rnn_lstm
 
+import numpy as np
+import matplotlib.pyplot as plt
 from pandas import read_csv, DataFrame
-
 from nltk.corpus import stopwords
 
 #Given a list of tokens, returns a numpy array of word embedding vectors
@@ -79,13 +73,14 @@ if __name__ == "__main__":
 	df.TEXT = df.TEXT.apply(lambda t : t.translate(str.maketrans('', '', string.punctuation)))
 
 	#Multinomial naive bayes
-	#mn_bayes(df, 5)
+	mn_bayes(df, 5)
 
 	#Test mode uses a subset of data
 	if test_mode:
 		df.drop([i for i in range(1000, len(df))], inplace = True)
 		df.reset_index(inplace = True, drop = True)
 
+	#Train and compare RNN and LSTM
 	rnn_history, lstm_history = compare_rnn_lstm(df)	
 
 	#Plot performance graphs
@@ -97,7 +92,5 @@ if __name__ == "__main__":
 	plt.xlabel('Epoch')
 	plt.ylabel('Validation Accuracy')
 	plt.title("Accuracy and validation accuracy over 20 epochs")
-	plt.savefig("no-pretrained output")
+	plt.savefig("output")
 	plt.show()
-
-	
