@@ -2,6 +2,7 @@ import csv
 import time
 import random
 import math
+import string
 
 import numpy as np
 
@@ -14,7 +15,8 @@ from pandas import read_csv, DataFrame
 
 from nltk.corpus import stopwords
 
-#Given a list of tokens
+#Given a list of tokens, returns a numpy array of word embedding vectors
+#Works either with a preloaded dict of {word : vector} or the name of an embedding file
 def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None, length = None):
 	if preloaded_w2v and word2vec_file:
 		print("Warning: text_to_word2vec received values for both word2vec_dict and word2vec_file, expected only one. Defaulting to use word2vec_dict")
@@ -60,7 +62,6 @@ def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None,
 
 if __name__ == "__main__":
 	test_mode = False
-	prebuilt_embeddings = True
 
 	print("Reading dataset")
 	df = read_csv("news_ds.csv")
@@ -74,6 +75,9 @@ if __name__ == "__main__":
 	print("Removing stopwords")
 	df.TEXT = df.TEXT.apply(lambda t : ' '.join([word for word in t.split() if word not in stop_words]))
 
+	print("Removing punctuation")
+	df.TEXT = df.TEXT.apply(lambda t : t.translate(str.maketrans('', '', string.punctuation)))
+
 	#Multinomial naive bayes
 	#mn_bayes(df, 5)
 
@@ -82,18 +86,18 @@ if __name__ == "__main__":
 		df.drop([i for i in range(1000, len(df))], inplace = True)
 		df.reset_index(inplace = True, drop = True)
 
-	rnn_history, lstm_history = compare_rnn_lstm(df, prebuilt_embeddings)	
+	rnn_history, lstm_history = compare_rnn_lstm(df)	
 
 	#Plot performance graphs
 	epoch_list = [i for i in range(1, len(rnn_history["acc"]) + 1)]
 	plt.plot(epoch_list, lstm_history["acc"], color = (0, 0.6, 0))
 	plt.plot(epoch_list, rnn_history["acc"], color = (0, 0, 0.6))
 	plt.plot(epoch_list, lstm_history["val_acc"], color = (0.05, 1, 0.05))
-	plt.plot(epoch_list, rnn_history["val_acc"], color = (0.05, 0.05, 1))
+	plt.plot(epoch_list, rnn_history["val_acc"], color = (0.1, 0.1, 1))
 	plt.xlabel('Epoch')
 	plt.ylabel('Validation Accuracy')
 	plt.title("Accuracy and validation accuracy over 20 epochs")
-	plt.savefig("output")
+	plt.savefig("no-pretrained output")
 	plt.show()
 
 	

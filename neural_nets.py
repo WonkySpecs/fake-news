@@ -29,19 +29,13 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 	model = Sequential()
 
 	#Embedding layer used to translate words to vectors
-	if type(embedding_mat) == int:
-		#Otherwise embeddings will be learnt during fitting
-		#"embedding_mat" is actually the maximum word index here, bad style
-		model.add(Embedding(embedding_mat, EMBEDDING_LENGTH, input_length = SEQ_LENGTH))
-
-	else:
-		#If using prebuilt embeddings (ie Glove), fix embedding weights as the given weights
-		#Inputs to this layer then "select" the correct row fromt he embedding matrix for the next layer
-		model.add(Embedding(embedding_mat.shape[0],
-                        EMBEDDING_LENGTH,
-                        weights = [embedding_mat],
-                        input_length = SEQ_LENGTH,
-                        trainable = False))
+	#Layer weights are fixed as the given word2vec vectors
+	#Inputs to this layer then "select" the correct row from the embedding matrix for the next layer
+	model.add(Embedding(embedding_mat.shape[0],
+                    EMBEDDING_LENGTH,
+                    weights = [embedding_mat],
+                    input_length = SEQ_LENGTH,
+                    trainable = False))
 		
 
 	if model_type == "LSTM":
@@ -64,7 +58,7 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 
 	return model
 
-def compare_rnn_lstm(df, prebuilt_embeddings):
+def compare_rnn_lstm(df):
 	SEQ_LENGTH = 1000
 	EMBEDDING_LENGTH = 100
 
@@ -73,22 +67,19 @@ def compare_rnn_lstm(df, prebuilt_embeddings):
 	tokenizer.fit_on_texts(list(df.TEXT))
 	sequences = tokenizer.texts_to_sequences(list(df.TEXT))
 	word_index = tokenizer.word_index
+	
+	print("Loading word2vec")
+	word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
 
-	embedding_mat = max(word_index.values())
+	max_i = max(word_index.values())
 
-	if prebuilt_embeddings:
-		print("Loading word2vec")
-		word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
+	print("Building embedding mat")
+	embedding_mat = np.zeros(((max_i + 1), EMBEDDING_LENGTH))
 
-		max_i = max(word_index.values())
-
-		print("Building embedding mat")
-		embedding_mat = np.zeros(((max_i + 1), EMBEDDING_LENGTH))
-
-		for word, i in word_index.items():
-			embedding = word2vec_dict.get(word)
-			if embedding is not None:
-				embedding_mat[i] = embedding
+	for word, i in word_index.items():
+		embedding = word2vec_dict.get(word)
+		if embedding is not None:
+			embedding_mat[i] = embedding
 
 	#Truncate sequences longer than SEQ_LENGTH, pad shorter sequences with 0s
 	fixed_length_sequences = pad_sequences(sequences, maxlen = SEQ_LENGTH)
