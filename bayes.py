@@ -15,10 +15,11 @@ class FeatureExtractor:
 			raise KeyError("FeatureExtractor feature_type expected 'tf' or 'tfidf', received {}".format(feature_type))
 
 		self.count_vect = None
-		if ngram_range == None:
+		if ngram_range is None:
 			self.ngram_range = (1, 1)
 		else:
 			self.ngram_range = ngram_range
+		print(self.ngram_range)
 
 	def compute_freq_mat(self, input_texts):
 		if self.count_vect:
@@ -37,10 +38,17 @@ class FeatureExtractor:
 		return tf_mat
 
 def mn_bayes(df, k):
-	extractor_name_dict = { "tf"			: FeatureExtractor("tf"),
-							"tfidf" 		: FeatureExtractor("tfidf"),
-							"2gram tf"		: FeatureExtractor("tf", ngram_range = (2, 2)),
-							"2gram tfidf"	: FeatureExtractor("tfidf", ngram_range = (2, 2))}
+	try_combinations = True
+	if try_combinations:
+		extractor_name_dict = { "tf"			: FeatureExtractor("tf"),
+								"tfidf" 		: FeatureExtractor("tfidf"),
+								"2gram tf"		: FeatureExtractor("tf", ngram_range = (2, 2)),
+								"2gram tfidf"	: FeatureExtractor("tfidf", ngram_range = (2, 2)),
+								"4gram tf"		: FeatureExtractor("tf", ngram_range = (4, 4)),
+								"4gram tfidf"	: FeatureExtractor("tfidf", ngram_range = (4, 4)),
+								"1-4gram tfidf"	: FeatureExtractor("tfidf", ngram_range = (1, 4))}
+	else:
+		extractor_name_dict = {	"tfidf"			: FeatureExtractor("tfidf")}
 
 	#Randomize test/training sets
 	indices = [n for n in range(len(df))]
