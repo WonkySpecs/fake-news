@@ -16,12 +16,16 @@ def load_word2vec_dict(embedding_length):
 	else:
 		print("Invalid embedding length {} past to load_word2vec_dict, must be one of {}".format(embedding_length, valid_embedding_lengths))
 
-	with open(w2vfile, encoding = "utf8") as w2vf:
-		for line in w2vf:
-			items = line.replace("\n", "").replace("\r", "").split(" ")
-			word = items[0]
-			vec = np.array([float(n) for n in items[1:]])
-			w2vd[word] = vec
+	try:
+		with open(w2vfile, encoding = "utf8") as w2vf:
+			for line in w2vf:
+				items = line.replace("\n", "").replace("\r", "").split(" ")
+				word = items[0]
+				vec = np.array([float(n) for n in items[1:]])
+				w2vd[word] = vec
+	except FileNotFoundError:
+		print("Must have the embeddings file {} in the same folder as neural_nets.py".format(w2vfile))
+		exit()
 
 	return w2vd
 
@@ -59,7 +63,9 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 	return model
 
 def compare_rnn_lstm(df):
+	#Texts longer than SEQ_LENGTH will be truncated, shorter texts are padded with 0s
 	SEQ_LENGTH = 1000
+	#The length of each word vector
 	EMBEDDING_LENGTH = 100
 
 	print("Tokenizing texts")
