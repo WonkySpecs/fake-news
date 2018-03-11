@@ -1,8 +1,6 @@
 import math
 import numpy as np
 
-from nltk.corpus import stopwords
-
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
@@ -25,11 +23,6 @@ def load_word2vec_dict(embedding_length):
 			vec = np.array([float(n) for n in items[1:]])
 			w2vd[word] = vec
 
-	for word in stopwords.words("english"):
-		try:
-			del w2vd[word]
-		except KeyError:
-			pass
 	return w2vd
 
 def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
@@ -84,14 +77,6 @@ def compare_rnn_lstm(df, prebuilt_embeddings):
 		print("Loading word2vec")
 		word2vec_dict = load_word2vec_dict(EMBEDDING_LENGTH)
 
-		for word in stopwords.words("english"):
-			try:
-				del word_index[word]
-			except KeyError:
-				pass
-
-		#Should rejig indices to be consecutive 0 -> len(word_index), for now will just have zero rows for stopwords
-		#shouldnt matter as they dont get selected, but does wasted some memory
 		max_i = max(word_index.values())
 
 		print("Building embedding mat")

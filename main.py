@@ -12,6 +12,8 @@ from neural_nets import compare_rnn_lstm
 
 from pandas import read_csv, DataFrame
 
+from nltk.corpus import stopwords
+
 #Given a list of tokens
 def text_to_word2vec(tokenized_text, preloaded_w2v = None, word2vec_file = None, length = None):
 	if preloaded_w2v and word2vec_file:
@@ -67,6 +69,14 @@ if __name__ == "__main__":
 	df.drop([i for i in range(len(df)) if df.TEXT[i] == " "], inplace = True)
 	df.reset_index(inplace = True, drop = True)
 
+	stop_words = stopwords.words("english")
+
+	print("Removing stopwords")
+	df.TEXT = df.TEXT.apply(lambda t : ' '.join([word for word in t.split() if word not in stop_words]))
+
+	#Multinomial naive bayes
+	#mn_bayes(df, 5)
+
 	#Test mode uses a subset of data
 	if test_mode:
 		df.drop([i for i in range(1000, len(df))], inplace = True)
@@ -83,8 +93,7 @@ if __name__ == "__main__":
 	plt.xlabel('Epoch')
 	plt.ylabel('Validation Accuracy')
 	plt.title("Accuracy and validation accuracy over 20 epochs")
-	plt.savefig("output2")
+	plt.savefig("output")
 	plt.show()
 
-	#Multinomial naive bayes
-	mn_bayes(df, 5)
+	
