@@ -29,7 +29,12 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
 	model = Sequential()
 
 	#Embedding layer used to translate words to vectors
-	if embedding_mat is not None:
+	if type(embedding_mat) == int:
+		#Otherwise embeddings will be learnt during fitting
+		#"embedding_mat" is actually the maximum word index here, bad style
+		model.add(Embedding(embedding_mat, EMBEDDING_LENGTH, input_length = SEQ_LENGTH))
+
+	else:
 		#If using prebuilt embeddings (ie Glove), fix embedding weights as the given weights
 		#Inputs to this layer then "select" the correct row fromt he embedding matrix for the next layer
 		model.add(Embedding(embedding_mat.shape[0],
@@ -37,9 +42,7 @@ def build_model(model_type, embedding_mat, SEQ_LENGTH, EMBEDDING_LENGTH):
                         weights = [embedding_mat],
                         input_length = SEQ_LENGTH,
                         trainable = False))
-	else:
-		#Otherwise embeddings will be learnt during fitting
-		model.add(Embedding(embedding_mat.shape[0], EMBEDDING_LENGTH, input_length = SEQ_LENGTH))
+		
 
 	if model_type == "LSTM":
 		model.add(LSTM(100))
@@ -71,7 +74,7 @@ def compare_rnn_lstm(df, prebuilt_embeddings):
 	sequences = tokenizer.texts_to_sequences(list(df.TEXT))
 	word_index = tokenizer.word_index
 
-	embedding_mat = None
+	embedding_mat = max(word_index.values())
 
 	if prebuilt_embeddings:
 		print("Loading word2vec")
